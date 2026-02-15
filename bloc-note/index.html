@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Notes OS</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0f1d">
+
+    <style>
+        :root {
+            --bg: #0a0f1d;
+            --card-bg: #161e2d;
+            --neon-cyan: #00f2ff;
+            --neon-pink: #ff00e5;
+            --neon-red: #ff3131;
+            --text: #f1f5f9;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text); 
+            min-height: 100vh; 
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Écran de verrouillage */
+        #lock-screen {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--bg); z-index: 1000; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .lock-box { 
+            background: var(--card-bg); border: 2px solid var(--neon-cyan); 
+            padding: 30px; border-radius: 20px; text-align: center;
+            box-shadow: 0 0 20px var(--neon-cyan); width: 80%; max-width: 300px;
+        }
+
+        .shake { animation: shake 0.4s; border-color: var(--neon-red) !important; box-shadow: 0 0 30px var(--neon-red) !important; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        header {
+            padding: 20px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--neon-pink); background: linear-gradient(to bottom, #1e1b4b, var(--bg));
+        }
+
+        h1 { margin: 0; font-size: 1.1rem; text-shadow: 0 0 10px var(--neon-cyan); color: var(--neon-cyan); letter-spacing: 2px; }
+
+        .back-btn { background: rgba(255,255,255,0.1); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); padding: 5px 12px; border-radius: 5px; cursor: pointer; }
+
+        #menu-principal { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px; }
+        .folder-card { background: var(--card-bg); border: 1px solid rgba(0, 242, 255, 0.2); padding: 20px; border-radius: 12px; position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: 0.2s; }
+        .folder-card:active { transform: scale(0.95); background: #1e293b; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none;
+            align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px);
+        }
+        .modal { background: var(--card-bg); border: 2px solid var(--neon-cyan); padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
+        
+        input { width: 100%; padding: 12px; background: #000; border: 1px solid var(--neon-cyan); color: white; border-radius: 8px; margin: 10px 0; box-sizing: border-box; text-align: center; font-size: 16px; }
+        
+        .btn-confirm { background: var(--neon-cyan); border: none; color: black; font-weight: bold; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; }
+        
+        #view-folder { display: none; padding: 20px; padding-bottom: 120px; overflow-y: auto; height: calc(100vh - 160px); }
+        .note-card { background: rgba(30,41,59,0.4); border-left: 3px solid var(--neon-cyan); padding: 15px; margin-bottom: 15px; border-radius: 4px; position: relative; }
+        .note-card img { width: 100%; border-radius: 4px; margin-top: 10px; }
+        
+        .input-area { position: fixed; bottom: 0; width: 100%; background: #1e293b; padding: 15px; display: flex; gap: 10px; border-top: 2px solid var(--neon-cyan); box-sizing: border-box; }
+        
+        .delete-btn { color: var(--neon-red); background: none; border: none; font-size: 10px; width: 100%; text-align: right; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="lock-screen">
+    <div class="lock-box" id="lockBox">
+        <h2 id="lock-title" style="color: var(--neon-cyan); margin-top: 0; font-size: 1.1rem;">SYSTÈME VERROUILLÉ</h2>
+        <p id="lock-desc" style="font-size: 0.7rem; opacity: 0.7; margin-bottom: 20px;">ENTREZ VOTRE CODE</p>
+        <input type="password" id="pass-input" placeholder="••••" inputmode="numeric">
+        <button class="btn-confirm" onclick="checkPassword()">DÉCRYPTAGE</button>
+    </div>
+</div>
+
+<header>
+    <button class="back-btn" id="btnBack" onclick="exitFolder()" style="display:none">←</button>
+    <h1 id="main-title">ARCHIVES</h1>
+    <button onclick="location.reload()" style="background:none; border:none; font-size:20px;">🔒</button>
+</header>
+
+<div id="menu-principal">
+    <div id="folder-grid" style="display: contents;"></div>
+    <button style="grid-column: span 2; padding: 15px; background: none; border: 1px dashed var(--neon-cyan); color: var(--neon-cyan); border-radius: 12px; font-weight: bold;" onclick="document.getElementById('folderModal').style.display='flex'">+ NOUVEAU RÉPERTOIRE</button>
+</div>
+
+<div class="modal-overlay" id="folderModal">
+    <div class="modal">
+        <h3>NOM DU DOSSIER</h3>
+        <input type="text" id="newFolderName">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-confirm" style="background:#444; color:white;" onclick="document.getElementById('folderModal').style.display='none'">ANNULER</button>
+            <button class="btn-confirm" onclick="confirmFolder()">CRÉER</button>
+        </div>
+    </div>
+</div>
+
+<div id="view-folder">
+    <div id="notes-list"></div>
+    <div class="input-area">
+        <label style="cursor: pointer; font-size: 24px;">📷<input type="file" id="img-input" accept="image/*" style="display:none"></label>
+        <input type="text" id="note-text" style="flex:1; background:#0a0f1d; border:1px solid #334155; color:white; padding:10px; border-radius:8px" placeholder="Note...">
+        <button onclick="addNote()" style="background:var(--neon-cyan); border:none; padding:10px 15px; border-radius:8px; font-weight:bold">OK</button>
+    </div>
+</div>
+
+<script>
+    let db = JSON.parse(localStorage.getItem('stellar_secure_final')) || {};
+    let masterPass = localStorage.getItem('stellar_p');
+    let currentDir = null;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playErrorSound() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    if (!masterPass) {
+        document.getElementById('lock-title').innerText = "CRÉER CODE";
+    }
+
+    function checkPassword() {
+        const input = document.getElementById('pass-input').value;
+        const box = document.getElementById('lockBox');
+
+        if (!masterPass) {
+            if (input.length > 0) {
+                localStorage.setItem('stellar_p', input);
+                masterPass = input;
+                unlock();
+            }
+        } else if (input === masterPass) {
+            unlock();
+        } else {
+            playErrorSound();
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            box.classList.add('shake');
+            setTimeout(() => box.classList.remove('shake'), 400);
+            document.getElementById('pass-input').value = "";
+        }
+    }
+
+    function unlock() {
+        document.getElementById('lock-screen').style.transform = "translateY(-100%)";
+        renderMenu();
+    }
+
+    function confirmFolder() {
+        const name = document.getElementById('newFolderName').value.trim();
+        if(name && !db[name]) {
+            db[name] = []; save(); renderMenu();
+            document.getElementById('folderModal').style.display = 'none';
+            document.getElementById('newFolderName').value = '';
+        }
+    }
+
+    function renderMenu() {
+        const grid = document.getElementById('folder-grid');
+        grid.innerHTML = Object.keys(db).map(name => `
+            <div class="folder-card" onclick="openFolder('${name}')">
+                <button onclick="deleteFolder(event, '${name}')" style="position:absolute; top:5px; right:5px; background:none; border:none; color:var(--neon-red); font-size:18px;">×</button>
+                <div style="font-size: 35px;">📂</div>
+                <div style="font-weight: bold; margin-top: 10px;">${name.toUpperCase()}</div>
+            </div>
+        `).join('');
+    }
+
+    function deleteFolder(e, name) {
+        e.stopPropagation();
+        if(confirm("Supprimer ce répertoire ?")) {
+            delete db[name]; save(); renderMenu();
+        }
+    }
+
+    function openFolder(name) {
+        currentDir = name;
+        document.getElementById('menu-principal').style.display = 'none';
+        document.getElementById('view-folder').style.display = 'block';
+        document.getElementById('btnBack').style.display = 'block';
+        document.getElementById('main-title').innerText = name.toUpperCase();
+        renderNotes();
+    }
+
+    function exitFolder() {
+        document.getElementById('menu-principal').style.display = 'grid';
+        document.getElementById('view-folder').style.display = 'none';
+        document.getElementById('btnBack').style.display = 'none';
+        document.getElementById('main-title').innerText = "ARCHIVES";
+    }
+
+    function renderNotes() {
+        const list = document.getElementById('notes-list');
+        list.innerHTML = db[currentDir].map((n, i) => `
+            <div class="note-card">
+                <div>${n.text}</div>
+                ${n.img ? `<img src="${n.img}">` : ''}
+                <button class="delete-btn" onclick="deleteNote(${i})">[ SUPPRIMER ]</button>
+            </div>
+        `).join('');
+    }
+
+    function deleteNote(i) {
+        if(confirm("Effacer cette note ?")) {
+            db[currentDir].splice(i, 1); save(); renderNotes();
+        }
+    }
+
+    async function addNote() {
+        const txt = document.getElementById('note-text').value;
+        const file = document.getElementById('img-input').files[0];
+        let b64 = file ? await toBase64(file) : "";
+        if(txt || b64) {
+            db[currentDir].unshift({ text: txt, img: b64 });
+            save(); document.getElementById('note-text').value = ''; 
+            document.getElementById('img-input').value = '';
+            renderNotes();
+        }
+    }
+
+    const save = () => localStorage.setItem('stellar_secure_final', JSON.stringify(db));
+    const toBase64 = f => new Promise(r => {
+        const rd = new FileReader();
+        rd.readAsDataURL(f);
+        rd.onload = () => r(rd.result);
+    });
+</script>
+</body>
+</html>
